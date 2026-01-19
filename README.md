@@ -3,9 +3,84 @@
 A comprehensive full-stack web application for managing residential societies with 60 houses across 3 blocks. Built with **React.js**, **Node.js**, **Express.js**, and **MS SQL Server**.
 
 ![RSMS Dashboard](https://img.shields.io/badge/Status-Completed-success)
-![License](https://img.shields.io/badge/License-MIT-blue)
 ![React](https://img.shields.io/badge/React-18.0-61DAFB?logo=react)
 ![Node.js](https://img.shields.io/badge/Node.js-20.0-339933?logo=node.js)
+![SQL Server](https://img.shields.io/badge/SQL%20Server-2019-CC2927?logo=microsoft-sql-server)
+
+---
+
+## 🗄️ Database Schema
+
+### Tables Structure
+
+**1. Houses** (Foundation Table)
+```sql
+- id (PK)
+- block (A, B, C)
+- houseNumber
+- houseType (1BHK, 2BHK, 3BHK)
+- parkingSlotCount
+- status (available/occupied)
+```
+
+**2. Residents** (Users & Authentication)
+```sql
+- id (PK)
+- houseId (FK → Houses)
+- name, cnic, contact, email
+- password (hashed)
+- role (admin/owner/rental)
+```
+
+**3. Bills** (Financial Tracking)
+```sql
+- id (PK)
+- houseId (FK → Houses)
+- month, billType, amount
+- status (paid/unpaid/pending)
+- dueDate, description
+```
+
+**4. Requests** (Maintenance Workflow)
+```sql
+- id (PK)
+- residentId (FK → Residents)
+- staffId (FK → Staff)
+- type, description
+- status (pending/in-progress/completed)
+- priority (low/medium/high)
+```
+
+**5. Staff** (Workforce Management)
+```sql
+- id (PK)
+- name, role, contact
+- assignedRequests count
+```
+
+**6. Parking** (Vehicle Management)
+```sql
+- id (PK)
+- houseId (FK → Houses)
+- slotNumber, vehicleType
+- vehicleNumber, status
+```
+
+**7. Notes** (Communications)
+```sql
+- id (PK)
+- postedBy (FK → Residents)
+- title, description
+- category, datePosted
+```
+
+### Database Relationships
+- Houses : Residents = 1 : N (One house can have multiple residents)
+- Houses : Bills = 1 : N (One house has multiple bills)
+- Houses : Parking = 1 : N (One house has multiple parking slots)
+- Residents : Requests = 1 : N (One resident can make multiple requests)
+- Staff : Requests = 1 : N (One staff handles multiple requests)
+- Residents : Notes = 1 : N (One resident posts multiple notices)
 
 ---
 
@@ -13,12 +88,13 @@ A comprehensive full-stack web application for managing residential societies wi
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [System Architecture](#system-architecture)
+- [Database Schema](#database-schema)
 - [Installation](#installation)
 - [Database Setup](#database-setup)
 - [Usage](#usage)
 - [API Endpoints](#api-endpoints)
+- [SQL Queries](#sql-queries)
 - [Contributing](#contributing)
-- [License](#license)
 
 ---
 
@@ -46,7 +122,7 @@ A comprehensive full-stack web application for managing residential societies wi
 - JWT-based authentication
 - Role-based access control (Admin, Resident, Owner, Rental)
 - Protected routes and API endpoints
-- Secure password handling
+- Secure session management
 
 ---
 
@@ -65,14 +141,14 @@ A comprehensive full-stack web application for managing residential societies wi
 - **Express.js** - Web framework
 - **MS SQL Server** - Database
 - **MSSQL npm package** - Database driver
-- **JWT** - Authentication
-- **bcrypt** - Password hashing
+- **JWT** - Authentication tokens
 - **CORS** - Cross-origin resource sharing
 
 ### Database
-- **Microsoft SQL Server** - Relational database
-- Complex JOIN queries for data relationships
-- Stored procedures for business logic
+- **Microsoft SQL Server** - Relational database with 7 normalized tables
+- Complex JOIN queries for multi-table relationships
+- Foreign key constraints ensuring data integrity
+- Complete CRUD operations across all entities
 
 ---
 
@@ -223,8 +299,8 @@ CREATE TABLE Parking (
 Create `.env` file in **server** folder:
 ```env
 DB_SERVER=localhost
-DB_DATABASE=RSMS
-DB_USER=sa
+DB_DATABASE=DataBaseName
+DB_USER=UserThatYourLogin
 DB_PASSWORD=yourpassword
 DB_PORT=1433
 JWT_SECRET=your-secret-key-here
@@ -252,12 +328,12 @@ Client runs on `http://localhost:5173`
 ### Default Login Credentials
 ```
 Admin:
-Email: admin@rsms.com
-Password: admin123
+Email: aashique@example.com
+Password: 123
 
 Resident:
-Email: resident@rsms.com
-Password: resident123
+Email:  Siraj@example.com
+Password: 123
 ```
 
 ---
@@ -296,7 +372,48 @@ PATCH  /api/resident/request/:id - Update my request
 ```
 
 ### Bills, Houses, Staff, Notices, Parking
-*Similar CRUD operations available for complete management*
+*Complete CRUD operations available for all modules with proper authentication and authorization*
+
+---
+
+## 💾 SQL Queries
+
+### Complex JOIN Queries
+
+**Bills with House and Resident Information**
+```sql
+SELECT 
+  b.id, b.houseId, b.month, b.billType, b.amount, b.status,
+  b.dueDate, b.description, b.createdAt,
+  h.block, h.houseNumber, h.houseType,
+  r.name
+FROM Bills b
+JOIN Houses h ON b.houseId = h.id
+LEFT JOIN Residents r ON h.id = r.houseId AND r.role IN ('owner', 'admin')
+ORDER BY b.dueDate DESC;
+```
+
+**Requests with Resident and Staff Details**
+```sql
+SELECT 
+  r.id, re.name as Requested_By, s.name as Requested_To,
+  h.houseNumber as House_Number, r.type, r.description,
+  r.status, r.priority
+FROM Requests r
+JOIN Residents re ON r.residentId = re.id
+JOIN Staff s ON r.staffId = s.id
+JOIN Houses h ON re.houseId = h.id;
+```
+
+**Resident Profile with House Details**
+```sql
+SELECT 
+  r.id, r.name, r.cnic, r.contact, r.email, r.role,
+  h.block, h.houseNumber, h.houseType, h.parkingSlotCount
+FROM Residents r
+JOIN Houses h ON r.houseId = h.id
+WHERE r.id = @id;
+```
 
 ---
 
@@ -309,12 +426,6 @@ Contributions are welcome! Please follow these steps:
 3. Commit changes (`git commit -m 'Add AmazingFeature'`)
 4. Push to branch (`git push origin feature/AmazingFeature`)
 5. Open Pull Request
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -332,6 +443,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Express.js Community
 - MS SQL Server Documentation
 - Lucide Icons
+- Node.js Community
 
 ---
 
@@ -342,7 +454,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Supported Features**: 8 major modules
 - **Database Tables**: 7
 - **API Endpoints**: 40+
-- **Lines of Code**: 15,000+
 
 ---
 
